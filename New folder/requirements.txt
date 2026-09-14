@@ -3,3 +3,4 @@ flask-cors
 numpy
 pillow
 ai-edge-litert
+huggingface_hub

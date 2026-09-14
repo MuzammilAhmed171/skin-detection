@@ -1,0 +1,9 @@
+dataset/
+__pycache__/
+.ipynb_checkpoints/
+*.ipynb
+train_model.py
+test_accuracy.py
+test_api.py
+*.keras
+.git/
