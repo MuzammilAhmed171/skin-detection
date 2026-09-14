@@ -1,10 +1,21 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import numpy as np
 from PIL import Image, ImageEnhance
 import os
 import shutil
-from huggingface_hub import hf_hub_download
+
+# Safe Hugging Face download import
+try:
+    from huggingface_hub import hf_hub_download
+except Exception:
+    hf_hub_download = None
+
+# Safe CORS import with built-in Flask fallback
+try:
+    from flask_cors import CORS
+    HAS_CORS = True
+except Exception:
+    HAS_CORS = False
 
 # Safe OpenCV import for Vercel Serverless environment
 try:
@@ -37,7 +48,15 @@ if tflite_interpreter_cls is None:
         pass
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+if HAS_CORS:
+    CORS(app, resources={r"/*": {"origins": "*"}})
+else:
+    @app.after_request
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+        return response
 
 # ── Model paths and Hugging Face settings ──────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
