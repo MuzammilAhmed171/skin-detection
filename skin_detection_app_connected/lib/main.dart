@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -278,6 +279,21 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
 
   Future<void> _saveImageLocally(File imageFile) async {
     try {
+      if (kIsWeb) {
+        if (mounted) {
+          setState(() {
+            _selectedImage = imageFile;
+            _predictionResult = null;
+            _confidenceScore = null;
+            _treatmentSuggestion = null;
+            _reasoning = null;
+            _isNotFound = false;
+            _notFoundMessage = null;
+            _skinPercentage = null;
+          });
+        }
+        return;
+      }
       final directory = await getApplicationDocumentsDirectory();
       final path =
           '${directory.path}/skin_image_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -373,9 +389,16 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
         'POST',
         Uri.parse('$_apiBaseUrl/predict'),
       );
-      request.files.add(
-        await http.MultipartFile.fromPath('image', _selectedImage!.path),
-      );
+      if (kIsWeb) {
+        final bytes = await _selectedImage!.readAsBytes();
+        request.files.add(
+          http.MultipartFile.fromBytes('image', bytes, filename: 'upload.jpg'),
+        );
+      } else {
+        request.files.add(
+          await http.MultipartFile.fromPath('image', _selectedImage!.path),
+        );
+      }
       final streamedResponse = await request.send().timeout(
             const Duration(seconds: 30),
           );
