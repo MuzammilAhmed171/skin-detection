@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -54,6 +55,7 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
 
   final ImagePicker _picker = ImagePicker();
   File? _selectedImage;
+  Uint8List? _selectedImageBytes;
   bool _isLoading = false;
   bool _isAnalyzing = false;
   String? _predictionResult;
@@ -330,9 +332,24 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
       );
 
       if (photo != null) {
-        await _saveImageLocally(File(photo.path));
+        final bytes = await photo.readAsBytes();
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {
+            _selectedImageBytes = bytes;
+            if (!kIsWeb) {
+              _selectedImage = File(photo.path);
+            } else {
+              _selectedImage = null;
+            }
+            _predictionResult = null;
+            _confidenceScore = null;
+            _treatmentSuggestion = null;
+            _reasoning = null;
+            _isNotFound = false;
+            _notFoundMessage = null;
+            _skinPercentage = null;
+            _isLoading = false;
+          });
           _showSnackBar(
               '📸 Photo captured successfully!', const Color(0xFF6C63FF));
         }
@@ -359,9 +376,24 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
       );
 
       if (photo != null) {
-        await _saveImageLocally(File(photo.path));
+        final bytes = await photo.readAsBytes();
         if (mounted) {
-          setState(() => _isLoading = false);
+          setState(() {
+            _selectedImageBytes = bytes;
+            if (!kIsWeb) {
+              _selectedImage = File(photo.path);
+            } else {
+              _selectedImage = null;
+            }
+            _predictionResult = null;
+            _confidenceScore = null;
+            _treatmentSuggestion = null;
+            _reasoning = null;
+            _isNotFound = false;
+            _notFoundMessage = null;
+            _skinPercentage = null;
+            _isLoading = false;
+          });
           _showSnackBar(
               '🖼️ Image selected successfully!', const Color(0xFF6C63FF));
         }
@@ -377,7 +409,7 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
   }
 
   Future<void> _analyzeImage() async {
-    if (_selectedImage == null) {
+    if (_selectedImageBytes == null && _selectedImage == null) {
       _showSnackBar('Please select an image first!', Colors.orange);
       return;
     }
@@ -389,10 +421,10 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
         'POST',
         Uri.parse('$_apiBaseUrl/predict'),
       );
-      if (kIsWeb) {
-        final bytes = await _selectedImage!.readAsBytes();
+
+      if (_selectedImageBytes != null) {
         request.files.add(
-          http.MultipartFile.fromBytes('image', bytes, filename: 'upload.jpg'),
+          http.MultipartFile.fromBytes('image', _selectedImageBytes!, filename: 'upload.jpg'),
         );
       } else {
         request.files.add(
@@ -852,15 +884,15 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
                       ),
                   ],
                 ),
-                child: _selectedImage != null
+                child: (_selectedImageBytes != null || _selectedImage != null)
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(30),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            kIsWeb
-                                ? Image.network(
-                                    _selectedImage!.path,
+                            _selectedImageBytes != null
+                                ? Image.memory(
+                                    _selectedImageBytes!,
                                     fit: BoxFit.cover,
                                   )
                                 : Image.file(
@@ -1011,7 +1043,7 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
               const SizedBox(height: 20),
 
               // Analyze & Delete Row
-              if (_selectedImage != null) ...[
+              if (_selectedImage != null || _selectedImageBytes != null) ...[
                 Row(
                   children: [
                     Expanded(
