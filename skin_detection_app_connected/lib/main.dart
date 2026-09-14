@@ -858,10 +858,15 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.file(
-                              _selectedImage!,
-                              fit: BoxFit.cover,
-                            ),
+                            kIsWeb
+                                ? Image.network(
+                                    _selectedImage!.path,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.file(
+                                    _selectedImage!,
+                                    fit: BoxFit.cover,
+                                  ),
                             Container(
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(
