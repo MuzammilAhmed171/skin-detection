@@ -3,5 +3,4 @@ flask-cors
 numpy
 pillow
 opencv-python-headless
-tensorflow>=2.16.1
-huggingface_hub
+ai-edge-litert

@@ -6,7 +6,30 @@ import cv2
 import os
 import shutil
 from huggingface_hub import hf_hub_download
-import tensorflow as tf
+
+# ── Dynamic ML Engine Import (Full TensorFlow or Lightweight TFLite Runtime) ──
+tf = None
+tflite_interpreter_cls = None
+
+try:
+    import tensorflow as tf
+    tflite_interpreter_cls = tf.lite.Interpreter
+except Exception:
+    pass
+
+if tflite_interpreter_cls is None:
+    try:
+        import ai_edge_litert.interpreter as tflite
+        tflite_interpreter_cls = tflite.Interpreter
+    except Exception:
+        pass
+
+if tflite_interpreter_cls is None:
+    try:
+        import tflite_runtime.interpreter as tflite
+        tflite_interpreter_cls = tflite.Interpreter
+    except Exception:
+        pass
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -19,7 +42,7 @@ HF_REPO_ID   = 'shoaibb882/skin-disease-model'
 HF_FILENAME  = 'best_skin_model.keras'
 
 # Handled for serverless read-only filesystem (Vercel)
-if not os.path.exists(KERAS_PATH):
+if tf is not None and not os.path.exists(KERAS_PATH):
     try:
         print("Downloading model from Hugging Face...")
         downloaded_path = hf_hub_download(repo_id=HF_REPO_ID, filename=HF_FILENAME)
@@ -35,7 +58,7 @@ interpreter = None
 _input_details = None
 _output_details = None
 
-if os.path.exists(KERAS_PATH):
+if tf is not None and os.path.exists(KERAS_PATH):
     try:
         model_keras = tf.keras.models.load_model(KERAS_PATH, compile=False)
         USE_KERAS = True
@@ -43,9 +66,9 @@ if os.path.exists(KERAS_PATH):
     except Exception as e:
         print(f"[WARN] Could not load Keras model: {e}")
 
-if not USE_KERAS and os.path.exists(TFLITE_PATH):
+if not USE_KERAS and os.path.exists(TFLITE_PATH) and tflite_interpreter_cls is not None:
     try:
-        interpreter = tf.lite.Interpreter(model_path=TFLITE_PATH)
+        interpreter = tflite_interpreter_cls(model_path=TFLITE_PATH)
         interpreter.allocate_tensors()
         _input_details  = interpreter.get_input_details()
         _output_details = interpreter.get_output_details()
