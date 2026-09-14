@@ -2,10 +2,15 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
 from PIL import Image, ImageEnhance
-import cv2
 import os
 import shutil
 from huggingface_hub import hf_hub_download
+
+# Safe OpenCV import for Vercel Serverless environment
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 # ── Dynamic ML Engine Import (Full TensorFlow or Lightweight TFLite Runtime) ──
 tf = None
@@ -90,34 +95,40 @@ def calculate_skin_ratio(pil_img: Image.Image) -> float:
     multi-color-space rules (YCrCb + HSV + RGB).
     """
     try:
-        rgb  = np.array(pil_img.convert('RGB'))
-        bgr  = cv2.cvtColor(rgb,  cv2.COLOR_RGB2BGR)
-        ycc  = cv2.cvtColor(bgr,  cv2.COLOR_BGR2YCrCb)
-        hsv  = cv2.cvtColor(bgr,  cv2.COLOR_BGR2HSV)
+        rgb = np.array(pil_img.convert('RGB'), dtype=np.uint8)
 
-        # YCrCb range (works well for diverse skin tones)
-        mask_ycc = cv2.inRange(ycc,
-                               np.array([0,   133, 77],  dtype=np.uint8),
-                               np.array([255, 173, 127], dtype=np.uint8))
+        if cv2 is not None:
+            bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+            ycc = cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb)
+            hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
 
-        # HSV range – warm hues only
-        mask_hsv = cv2.bitwise_or(
-            cv2.inRange(hsv, np.array([0,  20, 50],  dtype=np.uint8),
-                             np.array([25, 255, 255], dtype=np.uint8)),
-            cv2.inRange(hsv, np.array([160, 20, 50],  dtype=np.uint8),
-                             np.array([180, 255, 255], dtype=np.uint8)),
-        )
-
-        # Classical RGB rule
-        r, g, b = rgb[:, :, 0].astype(int), rgb[:, :, 1].astype(int), rgb[:, :, 2].astype(int)
-        mask_rgb = (
-            (r > 95) & (g > 40) & (b > 20) &
-            ((np.maximum(np.maximum(r, g), b) - np.minimum(np.minimum(r, g), b)) > 15) &
-            (np.abs(r - g) > 15) & (r > g) & (r > b)
-        )
-
-        combined = ((cv2.bitwise_and(mask_ycc, mask_hsv) > 0) | mask_rgb)
-        return float(np.mean(combined))
+            mask_ycc = cv2.inRange(ycc, np.array([0, 133, 77], dtype=np.uint8), np.array([255, 173, 127], dtype=np.uint8))
+            mask_hsv = cv2.bitwise_or(
+                cv2.inRange(hsv, np.array([0, 20, 50], dtype=np.uint8), np.array([25, 255, 255], dtype=np.uint8)),
+                cv2.inRange(hsv, np.array([160, 20, 50], dtype=np.uint8), np.array([180, 255, 255], dtype=np.uint8))
+            )
+            r, g, b = rgb[:, :, 0].astype(int), rgb[:, :, 1].astype(int), rgb[:, :, 2].astype(int)
+            mask_rgb = (
+                (r > 95) & (g > 40) & (b > 20) &
+                ((np.maximum(np.maximum(r, g), b) - np.minimum(np.minimum(r, g), b)) > 15) &
+                (np.abs(r - g) > 15) & (r > g) & (r > b)
+            )
+            combined = ((cv2.bitwise_and(mask_ycc, mask_hsv) > 0) | mask_rgb)
+            return float(np.mean(combined))
+        else:
+            # Pure NumPy implementation for serverless compatibility
+            r, g, b = rgb[:, :, 0].astype(int), rgb[:, :, 1].astype(int), rgb[:, :, 2].astype(int)
+            y  = 0.299 * r + 0.587 * g + 0.114 * b
+            cr = (r - y) * 0.713 + 128
+            cb = (b - y) * 0.564 + 128
+            mask_ycc = (y >= 0) & (y <= 255) & (cr >= 133) & (cr <= 173) & (cb >= 77) & (cb <= 127)
+            mask_rgb = (
+                (r > 95) & (g > 40) & (b > 20) &
+                ((np.maximum(np.maximum(r, g), b) - np.minimum(np.minimum(r, g), b)) > 15) &
+                (np.abs(r - g) > 15) & (r > g) & (r > b)
+            )
+            combined = mask_ycc | mask_rgb
+            return float(np.mean(combined))
     except Exception as e:
         print(f"[skin_ratio] error: {e}")
         return 1.0  # fail-open
@@ -236,7 +247,17 @@ def predict():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        'status': 'healthy',
+        'service': 'DermaScan AI Backend API',
+        'message': 'API is active and ready on Vercel',
+        'endpoints': {
+            '/health': 'GET - Health check status',
+            '/predict': 'POST - Skin disease image prediction'
+        }
+    })
 
 
 @app.route('/health', methods=['GET'])
