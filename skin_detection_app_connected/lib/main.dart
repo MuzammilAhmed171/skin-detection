@@ -44,7 +44,7 @@ class SkinDetectionScreen extends StatefulWidget {
 }
 
 class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
-  static const String _defaultApiBaseUrl = 'http://192.168.100.228:5000';
+  static const String _defaultApiBaseUrl = 'https://your-backend.vercel.app';
 
   String _apiBaseUrl = const String.fromEnvironment(
     'API_URL',
@@ -601,7 +601,7 @@ class _SkinDetectionScreenState extends State<SkinDetectionScreen> {
                     TextField(
                       controller: controller,
                       decoration: InputDecoration(
-                        hintText: 'http://192.168.100.228:5000',
+                        hintText: 'https://your-backend.vercel.app',
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12)),
                         contentPadding: const EdgeInsets.symmetric(

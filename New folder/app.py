@@ -9,21 +9,26 @@ from huggingface_hub import hf_hub_download
 import tensorflow as tf
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# ── Download model from Hugging Face if not present ───────────────────────────
-KERAS_PATH   = 'best_skin_model.keras'
-TFLITE_PATH  = 'skin_disease_model.tflite'
+# ── Model paths and Hugging Face settings ──────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+KERAS_PATH   = os.path.join(BASE_DIR, 'best_skin_model.keras')
+TFLITE_PATH  = os.path.join(BASE_DIR, 'skin_disease_model.tflite')
 HF_REPO_ID   = 'shoaibb882/skin-disease-model'
 HF_FILENAME  = 'best_skin_model.keras'
 
+# Handled for serverless read-only filesystem (Vercel)
 if not os.path.exists(KERAS_PATH):
-    print("Downloading model from Hugging Face...")
-    downloaded_path = hf_hub_download(repo_id=HF_REPO_ID, filename=HF_FILENAME)
-    shutil.copy(downloaded_path, KERAS_PATH)
-    print(f"Model downloaded successfully! Size: {os.path.getsize(KERAS_PATH) / (1024*1024):.1f} MB")
+    try:
+        print("Downloading model from Hugging Face...")
+        downloaded_path = hf_hub_download(repo_id=HF_REPO_ID, filename=HF_FILENAME)
+        KERAS_PATH = downloaded_path
+        print(f"Model downloaded successfully!")
+    except Exception as e:
+        print(f"[WARN] Hugging Face download skipped/failed: {e}")
 
-# ── Load model: Try best_skin_model.keras first, fallback to tflite ───────────
+# ── Load model: Try Keras model first, fallback to tflite ─────────────────────
 USE_KERAS = False
 model_keras = None
 interpreter = None
@@ -38,12 +43,15 @@ if os.path.exists(KERAS_PATH):
     except Exception as e:
         print(f"[WARN] Could not load Keras model: {e}")
 
-if not USE_KERAS:
-    interpreter = tf.lite.Interpreter(model_path=TFLITE_PATH)
-    interpreter.allocate_tensors()
-    _input_details  = interpreter.get_input_details()
-    _output_details = interpreter.get_output_details()
-    print(f"[OK] Loaded TFLite model: {TFLITE_PATH}")
+if not USE_KERAS and os.path.exists(TFLITE_PATH):
+    try:
+        interpreter = tf.lite.Interpreter(model_path=TFLITE_PATH)
+        interpreter.allocate_tensors()
+        _input_details  = interpreter.get_input_details()
+        _output_details = interpreter.get_output_details()
+        print(f"[OK] Loaded TFLite model: {TFLITE_PATH}")
+    except Exception as e:
+        print(f"[WARN] Could not load TFLite model: {e}")
 
 # ── Class names (must match training order) ───────────────────────────────────
 CLASS_NAMES = ['Acne', 'Chickenpox', 'Dyshidrotic Eczema', 'Ringworm']
