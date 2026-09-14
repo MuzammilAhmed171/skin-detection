@@ -3,23 +3,25 @@ import numpy as np
 from PIL import Image, ImageEnhance
 import os
 import shutil
+import importlib
 
-# Safe Hugging Face download import
+# Safe Hugging Face download import (using importlib to prevent IDE import warnings)
 try:
-    from huggingface_hub import hf_hub_download
+    hf_hub_download = getattr(importlib.import_module('huggingface_hub'), 'hf_hub_download', None)
 except Exception:
     hf_hub_download = None
 
 # Safe CORS import with built-in Flask fallback
 try:
-    from flask_cors import CORS
-    HAS_CORS = True
+    CORS = getattr(importlib.import_module('flask_cors'), 'CORS', None)
+    HAS_CORS = CORS is not None
 except Exception:
+    CORS = None
     HAS_CORS = False
 
 # Safe OpenCV import for Vercel Serverless environment
 try:
-    import cv2
+    cv2 = importlib.import_module('cv2')
 except Exception:
     cv2 = None
 
@@ -28,22 +30,22 @@ tf = None
 tflite_interpreter_cls = None
 
 try:
-    import tensorflow as tf
-    tflite_interpreter_cls = tf.lite.Interpreter
+    tf = importlib.import_module('tensorflow')
+    tflite_interpreter_cls = getattr(getattr(tf, 'lite', None), 'Interpreter', None)
 except Exception:
     pass
 
 if tflite_interpreter_cls is None:
     try:
-        import ai_edge_litert.interpreter as tflite
-        tflite_interpreter_cls = tflite.Interpreter
+        tflite = importlib.import_module('ai_edge_litert.interpreter')
+        tflite_interpreter_cls = getattr(tflite, 'Interpreter', None)
     except Exception:
         pass
 
 if tflite_interpreter_cls is None:
     try:
-        import tflite_runtime.interpreter as tflite
-        tflite_interpreter_cls = tflite.Interpreter
+        tflite = importlib.import_module('tflite_runtime.interpreter')
+        tflite_interpreter_cls = getattr(tflite, 'Interpreter', None)
     except Exception:
         pass
 
