@@ -268,6 +268,12 @@ def predict():
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Server error during prediction: {str(e)}',
+        }), 500
+
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({
